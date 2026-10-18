@@ -1,0 +1,15 @@
+{
+  "updatedAt": "2026-10-18T14:35:24.093Z",
+  "snapshots": [
+    {
+      "date": "2026-10-18",
+      "capturedAt": "2026-10-18T14:35:24.093Z",
+      "observedAt": "2026-10-18T08:08:00Z",
+      "sensors": [
+        "Suomi-NPP",
+        "NOAA-20"
+      ],
+      "hotspots": []
+    }
+  ]
+}

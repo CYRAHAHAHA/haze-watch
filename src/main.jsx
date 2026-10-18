@@ -1,116 +1,237 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { MapContainer, TileLayer, Marker, Popup, CircleMarker, Polyline, useMap } from 'react-leaflet';
-import L from 'leaflet';
-import { Activity, ArrowDown, ArrowUpRight, Cloud, Compass, ExternalLink, Flame, Layers, LocateFixed, Menu, Radio, RefreshCw, Satellite, Wind, X } from 'lucide-react';
+import { CircleMarker, MapContainer, TileLayer, Tooltip, useMap } from 'react-leaflet';
+import { ArrowDownRight, ArrowRight, ArrowUpRight, RefreshCw, Satellite } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
 import './style.css';
 
-const PLACES = [
-  { name: 'Singapore', region: 'Singapore', lat: 1.35, lon: 103.82 },
-  { name: 'Kuala Lumpur', region: 'Malaysia', lat: 3.14, lon: 101.69 },
-  { name: 'Johor Bahru', region: 'Malaysia', lat: 1.49, lon: 103.74 },
-  { name: 'Kuching', region: 'Malaysia', lat: 1.55, lon: 110.36 },
-  { name: 'Pontianak', region: 'Indonesia', lat: -0.03, lon: 109.34 },
-  { name: 'Palembang', region: 'Indonesia', lat: -2.99, lon: 104.76 },
-  { name: 'Pekanbaru', region: 'Indonesia', lat: 0.51, lon: 101.45 },
-  { name: 'Jambi', region: 'Indonesia', lat: -1.61, lon: 103.61 },
-  { name: 'Medan', region: 'Indonesia', lat: 3.59, lon: 98.67 },
-  { name: 'Jakarta', region: 'Indonesia', lat: -6.21, lon: 106.85 },
+const SINGAPORE = { lat: 1.35, lon: 103.82 };
+const HISTORY_URL = `${import.meta.env.BASE_URL}hotspot-history.json`;
+const WIND_URL = `https://api.open-meteo.com/v1/forecast?latitude=${SINGAPORE.lat}&longitude=${SINGAPORE.lon}&daily=wind_speed_10m_max,wind_direction_10m_dominant&forecast_days=3&timezone=Asia%2FSingapore`;
+const AGE = [
+  { label: 'Today', color: '#f5865e', opacity: 0.7 },
+  { label: 'Yesterday', color: '#e8b77a', opacity: 0.34 },
+  { label: '2 days ago', color: '#cad0b1', opacity: 0.2 },
 ];
-const ASMC_ITEM = 'https://api.wis2.asmc.asean.org/collections/regional_haze/items/REGIONAL_HAZE_MAP';
-const PSI_URL = 'https://api-open.data.gov.sg/v2/real-time/api/psi';
-const PM25_URL = 'https://api-open.data.gov.sg/v2/real-time/api/pm25';
-const dateLabel = (value) => value ? new Date(value).toLocaleString('en-SG', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Singapore' }) : '—';
-const dirLabel = (deg) => ['N','NE','E','SE','S','SW','W','NW'][Math.round((deg ?? 0) / 45) % 8];
-const arrowIcon = (deg, speed) => L.divIcon({ className: 'wind-marker', html: `<div class="wind-arrow" style="transform:rotate(${(deg + 180) % 360}deg)">➤</div><small>${Math.round(speed)} km/h</small>`, iconSize: [54, 38], iconAnchor: [27, 19] });
 
-function FitRegion({ focus }) {
+function distanceKm(a, b) {
+  const rad = Math.PI / 180;
+  const lat1 = a.lat * rad;
+  const lat2 = b.lat * rad;
+  const dLat = (b.lat - a.lat) * rad;
+  const dLon = (b.lon - a.lon) * rad;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+  return 6371 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+}
+
+function regionOf(point) {
+  if (point.lon >= 102 && point.lon <= 105 && point.lat >= 1.5 && point.lat <= 7) return 'Peninsular Malaysia';
+  if (point.lon < 108 && point.lat > -6 && point.lat < 7) return 'Sumatra';
+  if (point.lon >= 108 && point.lon < 119 && point.lat > -6 && point.lat < 8) return 'Borneo';
+  return 'Nearby region';
+}
+
+function angleDifference(a, b) {
+  return Math.abs(((a - b + 540) % 360) - 180);
+}
+
+function bearing(from, to) {
+  const rad = Math.PI / 180;
+  const lat1 = from.lat * rad;
+  const lat2 = to.lat * rad;
+  const dLon = (to.lon - from.lon) * rad;
+  const y = Math.sin(dLon) * Math.cos(lat2);
+  const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
+  return (Math.atan2(y, x) / rad + 360) % 360;
+}
+
+function compass(degrees) {
+  return ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][Math.round(degrees / 45) % 8];
+}
+
+function shortDate(date) {
+  return new Date(`${date}T12:00:00+08:00`).toLocaleDateString('en-SG', { day: 'numeric', month: 'short' });
+}
+
+function groupPoints(points) {
+  const cells = new Map();
+  for (const point of points) {
+    const latKey = Math.floor(point.lat / 0.35);
+    const lonKey = Math.floor(point.lon / 0.35);
+    const key = `${latKey}:${lonKey}`;
+    const cell = cells.get(key) || { latTotal: 0, lonTotal: 0, count: 0 };
+    cell.latTotal += point.lat;
+    cell.lonTotal += point.lon;
+    cell.count += 1;
+    cells.set(key, cell);
+  }
+  return [...cells.values()].map((cell) => ({
+    lat: cell.latTotal / cell.count,
+    lon: cell.lonTotal / cell.count,
+    count: cell.count,
+  }));
+}
+
+function MapCenter() {
   const map = useMap();
-  useEffect(() => { map.flyTo(focus || [1.2, 105.2], focus ? 7 : 5, { duration: 0.8 }); }, [focus, map]);
+  useEffect(() => { map.setView([1.25, 105.2], 5.2); }, [map]);
   return null;
 }
-function valueFor(obs, key, region = 'central') {
-  const item = obs?.[key];
-  if (!item) return null;
-  if (Array.isArray(item)) return item.find((x) => x.region === region)?.value ?? item[0]?.value ?? null;
-  if (typeof item === 'object') return item[region] ?? item.central ?? item.north ?? null;
-  return item;
+
+function CircleLegend({ snapshots }) {
+  const lastThree = snapshots.slice(-3).reverse();
+  return <div className="map-legend">
+    {lastThree.map((snapshot, index) => <span key={snapshot.date}><i style={{ background: AGE[index].color }} />{AGE[index].label}</span>)}
+    <small>VIIRS active fire detections</small>
+  </div>;
 }
+
+function Outlook({ snapshots, wind }) {
+  const samples = snapshots.slice(-3);
+  if (samples.length < 3) {
+    return <div className="outlook-copy">
+      <strong>Building a 3-day trend</strong>
+      <p>Today’s first satellite pass is recorded. Daily hotspot history will fill in over the next two days.</p>
+      {samples.length > 0 && <>
+        <div className="range-label">Hotspots within 750 km</div>
+        <div className="trend-row">
+          {samples.map((day) => <span key={day.date}><b>{day.hotspots.filter((point) => distanceKm(SINGAPORE, point) <= 750).length}</b><small>{shortDate(day.date)}</small></span>)}
+        </div>
+      </>}
+    </div>;
+  }
+
+  const nearby = samples.map((day) => day.hotspots.filter((point) => distanceKm(SINGAPORE, point) <= 750));
+  const recent = nearby.at(-1);
+  const previous = nearby.slice(0, 2).flat();
+  const currentByRegion = new Map();
+  for (const point of recent) currentByRegion.set(regionOf(point), (currentByRegion.get(regionOf(point)) || 0) + 1);
+  const source = [...currentByRegion.entries()].sort((a, b) => b[1] - a[1])[0];
+  const previousCount = previous.length / 2;
+  const changing = recent.length > previousCount * 1.2 ? 'rising' : recent.length < previousCount * 0.8 ? 'easing' : 'steady';
+  const sourcePoints = source ? recent.filter((point) => regionOf(point) === source[0]) : [];
+  const center = sourcePoints.length ? sourcePoints.reduce((sum, point) => ({ lat: sum.lat + point.lat / sourcePoints.length, lon: sum.lon + point.lon / sourcePoints.length }), { lat: 0, lon: 0 }) : null;
+  const windDays = wind?.daily?.time?.slice(0, 3).map((date, index) => ({
+    date,
+    speed: wind.daily.wind_speed_10m_max[index],
+    direction: wind.daily.wind_direction_10m_dominant[index],
+  })) || [];
+  const carriesFromSource = center && windDays.some((day) => angleDifference(day.direction, bearing(SINGAPORE, center)) < 70);
+
+  let title = 'No nearby hotspots in the latest pass';
+  let detail = 'No fire detections were recorded within about 750 km of Singapore today.';
+  let Icon = ArrowRight;
+  if (source) {
+    const trendText = changing === 'rising' ? 'increased' : changing === 'easing' ? 'decreased' : 'held steady';
+    title = `Nearby fire activity ${trendText}`;
+    Icon = changing === 'rising' ? ArrowUpRight : changing === 'easing' ? ArrowDownRight : ArrowRight;
+    detail = carriesFromSource
+      ? `Most detections are in ${source[0]}. Forecast winds may carry smoke from that direction toward Singapore.`
+      : `Most detections are in ${source[0]}. Forecast winds do not consistently point from that area toward Singapore.`;
+  } else if (recent.length) {
+    title = `Nearby fire activity ${changing}`;
+    detail = `${recent.length} hotspot${recent.length === 1 ? '' : 's'} within about 750 km today. Winds and fire activity can shift quickly.`;
+  }
+
+  return <div className="outlook-copy">
+    <div className="outlook-title"><Icon size={19} strokeWidth={1.8} /><strong>{title}</strong></div>
+    <p>{detail}</p>
+    <div className="range-label">Hotspots within 750 km</div>
+    <div className="trend-row" aria-label="Hotspots within 750 kilometres of Singapore over the past three days">
+      {samples.map((day, index) => <span key={day.date}><b>{nearby[index].length}</b><small>{shortDate(day.date)}</small></span>)}
+    </div>
+    {windDays.length > 0 && <p className="wind-note">Next 3 days: {windDays.map((day) => compass(day.direction)).join(' · ')} winds, {Math.round(windDays[0].speed)} km/h today.</p>}
+  </div>;
+}
+
 function App() {
-  const [winds, setWinds] = useState([]);
-  const [psi, setPsi] = useState(null);
-  const [psiTime, setPsiTime] = useState(null);
-  const [asmc, setAsmc] = useState(null);
+  const [history, setHistory] = useState({ snapshots: [] });
+  const [wind, setWind] = useState(null);
+  const [mapType, setMapType] = useState('satellite');
+  const [updated, setUpdated] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [layer, setLayer] = useState('street');
-  const [selected, setSelected] = useState('Singapore');
-  const [hours, setHours] = useState(0);
   const [error, setError] = useState('');
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const activePlace = PLACES.find((p) => p.name === selected) || PLACES[0];
-  const activeWind = winds.find((x) => x.name === selected);
 
   async function loadData() {
-    setLoading(true); setError('');
-    const weatherRequests = PLACES.map(async (place) => {
-      const query = new URLSearchParams({ latitude: place.lat, longitude: place.lon, hourly: 'wind_speed_10m,wind_direction_10m', forecast_days: '2', timezone: 'Asia/Singapore' });
-      const response = await fetch(`https://api.open-meteo.com/v1/forecast?${query}`);
-      if (!response.ok) throw new Error(`Wind feed: ${response.status}`);
-      const data = await response.json();
-      const index = Math.min(hours, data.hourly.time.length - 1);
-      return { ...place, time: data.hourly.time[index], speed: data.hourly.wind_speed_10m[index], direction: data.hourly.wind_direction_10m[index] };
-    });
-    const [weatherResult, psiResult, pm25Result, asmcResult] = await Promise.allSettled([
-      Promise.all(weatherRequests), fetch(PSI_URL).then((r) => { if (!r.ok) throw new Error('NEA feed unavailable'); return r.json(); }), fetch(PM25_URL).then((r) => { if (!r.ok) throw new Error('NEA PM2.5 feed unavailable'); return r.json(); }), fetch(ASMC_ITEM).then((r) => { if (!r.ok) throw new Error('ASMC feed unavailable'); return r.json(); }),
-    ]);
-    if (weatherResult.status === 'fulfilled') setWinds(weatherResult.value); else setError('Weather forecast could not be loaded. Check your connection and refresh.');
-    if (psiResult.status === 'fulfilled') { setPsi(psiResult.value?.data?.items?.[0]?.readings || null); setPsiTime(psiResult.value?.data?.items?.[0]?.updatedTimestamp || null); }
-    if (pm25Result.status === 'fulfilled') { setPsi((current) => ({ ...(current || {}), ...(pm25Result.value?.data?.items?.[0]?.readings || {}) })); }
-    if (asmcResult.status === 'fulfilled') setAsmc(asmcResult.value?.properties || asmcResult.value);
-    setLoading(false);
+    setLoading(true);
+    setError('');
+    try {
+      const [historyResponse, windResponse] = await Promise.all([
+        fetch(`${HISTORY_URL}?v=${Date.now()}`),
+        fetch(WIND_URL),
+      ]);
+      if (!historyResponse.ok) throw new Error('Hotspot history is not available yet.');
+      if (!windResponse.ok) throw new Error('Wind forecast is temporarily unavailable.');
+      const [historyData, windData] = await Promise.all([historyResponse.json(), windResponse.json()]);
+      setHistory(historyData);
+      setUpdated(historyData.updatedAt || null);
+      setWind(windData);
+    } catch (cause) {
+      setError(cause.message || 'Could not load the latest haze context.');
+    } finally {
+      setLoading(false);
+    }
   }
-  useEffect(() => { loadData(); }, [hours]);
-  const pm25 = valueFor(psi, 'pm25_one_hourly', 'central');
-  const psiValue = valueFor(psi, 'psi_twenty_four_hourly', 'national');
-  const asmcAsset = useMemo(() => {
-    if (!asmc) return null;
-    const assets = asmc.assets || {};
-    const candidate = Object.values(assets).find((asset) => /\.(png|jpg|jpeg|webp)(\?|$)/i.test(asset.href || ''));
-    return candidate?.href || asmc.links?.find((link) => link.rel === 'enclosure')?.href || null;
-  }, [asmc]);
-  const focus = [activePlace.lat, activePlace.lon];
 
-  return <div className="app-shell">
-    <aside className={`sidebar ${mobileOpen ? 'open' : ''}`}>
-      <div className="brand"><span className="brand-mark"><Wind size={20}/></span><span>MONSOON<span className="brand-light"> / FIELDNOTES</span></span><button className="icon-btn close-mobile" onClick={() => setMobileOpen(false)} aria-label="Close menu"><X size={18}/></button></div>
-      <div className="workspace-label">REGIONAL MONITOR <span className="online-dot"/></div>
-      <div className="nav-group"><div className="nav-heading">MONITORING</div><button className="nav-item active"><Satellite size={17}/> Situation map <span className="nav-count">LIVE</span></button><button className="nav-item" onClick={() => document.getElementById('sources')?.scrollIntoView({ behavior: 'smooth' })}><Activity size={17}/> Data sources</button><button className="nav-item" onClick={() => document.getElementById('timeline')?.scrollIntoView({ behavior: 'smooth' })}><Layers size={17}/> Recent context</button></div>
-      <div className="nav-group places-nav"><div className="nav-heading">REGION <button className="text-action" onClick={() => { setSelected('Singapore'); }}>RESET</button></div>{['Singapore','Malaysia','Indonesia'].map((region) => <button key={region} className="region-item" onClick={() => { const p = PLACES.find((x) => x.region === region); setSelected(p.name); setMobileOpen(false); }}><span className="region-dot"/>{region}<span className="region-chevron">↗</span></button>)}</div>
-      <div className="sidebar-bottom"><div className="status-card"><span className="status-pulse"/><div><b>DATA CONNECTION</b><span>Public feeds · read only</span></div><span className="status-led"/></div><div className="sidebar-foot"><span>FIELDNOTES 01.24</span><span>v0.1.0</span></div></div>
-    </aside>
-    {mobileOpen && <button className="mobile-scrim" onClick={() => setMobileOpen(false)} aria-label="Close navigation"/>}
-    <main className="main-content">
-      <header className="topbar"><button className="icon-btn menu-mobile" onClick={() => setMobileOpen(true)} aria-label="Open menu"><Menu size={20}/></button><div className="breadcrumb">MONITORING <span>/</span> <b>REGIONAL SITUATION</b></div><div className="topbar-right"><span className="updated"><span className="live-dot"/> FEEDS {loading ? 'UPDATING' : 'CONNECTED'}</span><button className="refresh-btn" onClick={loadData}><RefreshCw size={14} className={loading ? 'spin' : ''}/> REFRESH</button></div></header>
-      <div className="page-wrap">
-        <section className="page-intro"><div><div className="eyebrow">SOUTHEAST ASIA <span>•</span> DAILY BRIEF</div><h1>Regional haze <i>watch.</i></h1><p>Fire detections, near-surface wind forecasts, and air quality context across the maritime region.</p></div><div className="intro-date"><span>LOCAL TIME · SGT (UTC+8)</span><b>{new Date().toLocaleDateString('en-SG',{weekday:'short',day:'2-digit',month:'short',year:'numeric',timeZone:'Asia/Singapore'}).toUpperCase()}</b></div></section>
-        <section className="stats-grid">
-          <article className="stat-card"><div className="stat-head"><span>24H PSI</span><span className="stat-icon violet"><Activity size={16}/></span></div><div className="stat-value">{psiValue ?? '—'}<small>{psiValue != null ? ' index' : ' no feed'}</small></div><div className="stat-foot"><span className="stat-neutral">{psiValue != null ? 'Singapore · national' : 'Singapore NEA feed'}</span><span>UPDATED {psiTime ? dateLabel(psiTime).split(',')[1] : '—'}</span></div></article>
-          <article className="stat-card"><div className="stat-head"><span>PM₂.₅ · 1H</span><span className="stat-icon amber"><Cloud size={16}/></span></div><div className="stat-value">{pm25 ?? '—'}<small>{pm25 != null ? ' µg/m³' : ' no feed'}</small></div><div className="stat-foot"><span className="stat-neutral">{pm25 != null ? 'Singapore · latest reading' : 'NEA observation'}</span><span>OBSERVED</span></div></article>
-          <article className="stat-card"><div className="stat-head"><span>WIND · {selected.toUpperCase()}</span><span className="stat-icon blue"><Wind size={16}/></span></div><div className="stat-value">{activeWind?.speed ?? '—'}<small> km/h</small></div><div className="stat-foot"><span className="stat-neutral">{activeWind ? `${dirLabel(activeWind.direction)} · from ${activeWind.direction}°` : 'Forecast wind'}</span><span>AT +{hours}H</span></div></article>
-          <article className="stat-card source-stat"><div className="stat-head"><span>REGIONAL PRODUCT</span><span className="stat-icon green"><Satellite size={16}/></span></div><div className="stat-value source-value">{asmc ? 'ASMC' : '—'}<small>{asmc ? ' daily map' : ' feed unavailable'}</small></div><div className="stat-foot"><span className="stat-neutral">NOAA hotspots · 2,500 ft wind</span><span>DAILY</span></div></article>
-        </section>
-        {error && <div className="error-banner"><span>{error}</span><button onClick={loadData}>Retry</button></div>}
-        <section className="map-panel"><div className="panel-head"><div><div className="panel-kicker">LIVE VIEW <span className="pulse-small"/></div><h2>Fire activity &amp; wind field</h2></div><div className="map-controls"><button onClick={() => setLayer(layer === 'street' ? 'satellite' : 'street')}><Layers size={15}/>{layer === 'street' ? 'SATELLITE' : 'STREET'} LAYER</button><button onClick={() => setSelected('Singapore')}><LocateFixed size={15}/> RESET VIEW</button></div></div>
-          <div className="map-layout"><div className="map-frame"><MapContainer center={[1.2,105.2]} zoom={5} zoomControl={false} scrollWheelZoom minZoom={3} maxZoom={12}><TileLayer key={layer} attribution={layer === 'street' ? '&copy; OpenStreetMap contributors' : 'Tiles &copy; Esri'} url={layer === 'street' ? 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png' : 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'}/>{winds.map((w) => <React.Fragment key={w.name}><Marker position={[w.lat,w.lon]} icon={arrowIcon(w.direction,w.speed)} eventHandlers={{click:()=>setSelected(w.name)}}><Popup><b>{w.name}</b><br/>{w.speed} km/h · {dirLabel(w.direction)} wind</Popup></Marker>{w.name === selected && <CircleMarker center={[w.lat,w.lon]} radius={9} pathOptions={{color:'#c45f39',weight:2,fillOpacity:0}}/>}</React.Fragment>)}<FitRegion focus={focus}/></MapContainer><div className="map-credit">BASEMAP · {layer.toUpperCase()}</div><div className="map-note"><b>MODEL WIND</b><span>10 m · hourly forecast</span></div></div>
-            <aside className="map-rail"><div className="rail-block"><div className="rail-label"><span className="rail-number">01</span> LAYER KEY</div><div className="legend-row"><span className="legend-wind">➤</span><span><b>Surface wind</b><small>Direction of travel · km/h</small></span></div><div className="legend-row"><span className="legend-fire"><Flame size={14}/></span><span><b>Active fire hotspot</b><small>Shown in ASMC product</small></span></div><div className="legend-row"><span className="legend-ring"/><span><b>Selected location</b><small>{selected}</small></span></div></div><div className="rail-block selected-card"><div className="rail-label"><span className="rail-number">02</span> SELECTED AREA</div><h3>{selected}</h3><div className="coord">{activePlace.lat.toFixed(2)}° {activePlace.lat >= 0 ? 'N' : 'S'} · {activePlace.lon.toFixed(2)}° E</div><div className="wind-reading"><span className="wind-big"><Wind size={20}/></span><div><b>{activeWind ? `${activeWind.speed} km/h` : 'Loading…'}</b><small>{activeWind ? `${dirLabel(activeWind.direction)} wind · ${activeWind.direction}°` : 'Forecast wind'}</small></div></div><div className="forecast-time">FORECAST VALID <b>{activeWind ? dateLabel(activeWind.time) : '—'}</b></div><button className="rail-link" onClick={() => document.getElementById('wind-control')?.scrollIntoView({behavior:'smooth'})}>EXPLORE FORECAST <ArrowUpRight size={14}/></button></div><div className="rail-foot">Wind is an environmental context layer. It does not predict smoke concentration or health exposure.</div></aside></div>
-        </section>
-        <section className="lower-grid"><article className="timeline-panel" id="timeline"><div className="panel-head compact"><div><div className="panel-kicker">FORECAST CONTROL</div><h2>Wind outlook</h2></div><span className="forecast-badge"><Radio size={13}/> OPEN-METEO</span></div><div className="timeline-summary"><div><span>SELECTED LOCATION</span><b>{selected}</b></div><div><span>WIND AT +{hours} HOURS</span><b>{activeWind ? `${activeWind.speed} km/h ${dirLabel(activeWind.direction)}` : '—'}</b></div><div><span>VALID TIME (SGT)</span><b>{activeWind ? dateLabel(activeWind.time) : '—'}</b></div></div><div className="slider-row"><span>NOW</span><input id="wind-control" type="range" min="0" max="23" value={hours} onChange={(e) => setHours(Number(e.target.value))}/><span>+24H</span></div><div className="hours-label"><span>NOW</span><span>+6H</span><span>+12H</span><span>+18H</span><span>+24H</span></div><div className="outlook-note"><Compass size={15}/><span>Forecast guidance only. Use official advisories for safety decisions.</span></div></article>
-          <article className="source-panel" id="sources"><div className="panel-head compact"><div><div className="panel-kicker">OBSERVATION PRODUCT</div><h2>Daily regional haze map</h2></div><span className="source-badge">ASMC · OFFICIAL</span></div>{asmcAsset ? <div className="asmc-preview"><img src={asmcAsset} alt="Latest ASMC daily regional haze map"/><a href={asmcAsset} target="_blank" rel="noreferrer" aria-label="Open ASMC map"><ExternalLink size={14}/></a></div> : <div className="asmc-placeholder"><Satellite size={23}/><span>{loading ? 'Connecting to ASMC WIS 2.0…' : 'Map image is available on the ASMC portal'}</span><a href="https://wis2.asmc.asean.org/regional-haze-situation/" target="_blank" rel="noreferrer">OPEN ASMC REGIONAL HAZE PAGE <ArrowUpRight size={13}/></a></div>}<div className="source-meta"><span>Hotspots: NOAA satellite</span><span>Winds: 2,500 ft model analysis</span></div></article></section>
-        <footer className="page-footer"><span>MONSOON / FIELDNOTES <span className="footer-dot">•</span> PUBLIC DATA SITUATIONAL AWARENESS</span><span>NOT AN OFFICIAL FORECAST OR HEALTH ADVISORY</span></footer>
+  useEffect(() => { loadData(); }, []);
+
+  const snapshots = useMemo(() => history.snapshots?.slice(-3) || [], [history]);
+  const totalToday = snapshots.length ? snapshots.at(-1)?.hotspots?.length || 0 : '—';
+
+  return <main className="watch-page">
+    <header className="topbar">
+      <a className="wordmark" href="#top" aria-label="Singapore Haze Watch home"><Satellite size={17} /> HAZE WATCH <span>· SINGAPORE</span></a>
+      <div className="header-meta"><span>{updated ? `Updated ${new Date(updated).toLocaleTimeString('en-SG', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Singapore' })} SGT` : 'Regional satellite watch'}</span><button className="refresh" onClick={loadData} aria-label="Refresh data"><RefreshCw size={15} className={loading ? 'spin' : ''}/></button></div>
+    </header>
+
+    <section className="intro" id="top">
+      <div><h1>Is haze moving<br/><em>towards Singapore?</em></h1><p>Recent fire hotspots and wind direction, in one view.</p></div>
+      <div className="today-count"><b>{totalToday}</b><span>hotspots today<br/>within the map area</span></div>
+    </section>
+
+    {error && <p className="error-message" role="status">{error} <button onClick={loadData}>Retry</button></p>}
+
+    <section className="watch-layout" aria-label="Regional hotspot map and outlook">
+      <div className="map-wrap">
+        <div className="map-head"><h2>Fire hotspots near Singapore</h2><button className="map-style" onClick={() => setMapType(mapType === 'satellite' ? 'street' : 'satellite')}>{mapType === 'satellite' ? 'Satellite' : 'Map'}</button></div>
+        <div className="map-frame">
+          <MapContainer center={[1.25, 105.2]} zoom={5.2} minZoom={3} maxZoom={11} scrollWheelZoom zoomControl>
+            <TileLayer
+              attribution={mapType === 'satellite' ? 'Tiles &copy; Esri' : '&copy; OpenStreetMap contributors'}
+              url={mapType === 'satellite'
+                ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+                : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'}
+            />
+            <MapCenter />
+            {snapshots.map((snapshot) => {
+              const ageIndex = snapshots.length - 1 - snapshots.indexOf(snapshot);
+              const dots = groupPoints(snapshot.hotspots || []);
+              return dots.map((dot, pointIndex) => <CircleMarker
+                key={`${snapshot.date}-${pointIndex}`}
+                center={[dot.lat, dot.lon]}
+                radius={Math.min(15, 4 + Math.sqrt(dot.count) * 1.8)}
+                pathOptions={{ color: AGE[ageIndex].color, weight: 1.5, fillColor: AGE[ageIndex].color, fillOpacity: AGE[ageIndex].opacity }}
+              ><Tooltip>{dot.count} hotspot{dot.count === 1 ? '' : 's'} · {shortDate(snapshot.date)}</Tooltip></CircleMarker>);
+            })}
+            <CircleMarker center={[SINGAPORE.lat, SINGAPORE.lon]} radius={5} pathOptions={{ color: '#fff8e9', fillColor: '#1c2825', fillOpacity: 1, weight: 2 }}>
+              <Tooltip permanent direction="right" offset={[7, 0]}>Singapore</Tooltip>
+            </CircleMarker>
+          </MapContainer>
+          <div className="map-tag"><i/> RECENT SATELLITE PASSES</div>
+          <div className="map-legend-overlay"><CircleLegend snapshots={snapshots}/></div>
+        </div>
+        <p className="map-caption">A circle marks detected fire activity, not confirmed haze. Older detections fade.</p>
       </div>
-    </main>
-  </div>;
+
+      <aside className="outlook-panel">
+        <div className="outlook-head"><span>THE NEXT FEW DAYS</span><span className="status-dot"/></div>
+        <Outlook snapshots={snapshots} wind={wind}/>
+        <a className="official-link" href="https://wis2.asmc.asean.org/smoke-haze-dispersion-model/" target="_blank" rel="noreferrer">ASMC official 24-hour haze model <ArrowUpRight size={14}/></a>
+      </aside>
+    </section>
+
+    <footer className="footnote"><span>Satellite fire detections are possible smoke sources, not proof of haze at ground level.</span><a href="https://wis2.asmc.asean.org/hotspot-reports-jpss-1-noaa-20/" target="_blank" rel="noreferrer">ASMC VIIRS data ↗</a></footer>
+  </main>;
 }
 
 createRoot(document.getElementById('root')).render(<React.StrictMode><App/></React.StrictMode>);

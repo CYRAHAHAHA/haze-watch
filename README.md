@@ -1,6 +1,6 @@
-# Haze Watch SEA
+# Haze Watch · Singapore
 
-A public-data regional haze situational-awareness dashboard for Singapore, Malaysia, and Indonesia. It combines the ASEAN Specialised Meteorological Centre (ASMC) daily haze map (NOAA satellite hotspot observations and model-analysis winds) with short-range Open-Meteo wind forecasts and Singapore NEA air-quality readings.
+A compact map of recent ASMC VIIRS active-fire detections around Singapore, with a simple three-day hotspot trend and surface-wind context.
 
 ## Run locally
 
@@ -9,32 +9,18 @@ npm install
 npm run dev
 ```
 
-The browser requests Open-Meteo, NEA, and ASMC directly; no API key is required for the configured feeds. Current data can fail to load in networks that restrict external requests, and the ASMC map item may not expose an image asset.
+## What the map means
 
-## Data and interpretation
+- Circles group fire pixels detected by Suomi-NPP and NOAA-20 over recent daily passes. Newer detections are brighter.
+- A hotspot is a possible smoke source. It does not confirm that haze reached the ground or Singapore.
+- The outlook compares detections within roughly 750 km of Singapore over the latest three daily snapshots, then checks the next three days of Open-Meteo surface-wind direction. It is an indicative signal, not an air-quality forecast.
+- ASMC separately publishes an official 24-hour smoke-dispersion model, linked in the outlook.
+- The app starts a daily history as snapshots are collected. It needs three daily records before it can describe a trend.
 
-- **ASMC regional haze map:** official daily graphic; hotspots indicate possible active fires and can be missed under cloud or between satellite passes. Its arrows are model-analysis winds at 2,500 ft. The product updates daily, nominally 08:30–10:30 UTC.
-- **Open-Meteo:** forecast wind speed and direction at selected regional locations for the next 24 hours. Wind can suggest transport direction; it is not a smoke-dispersion or air-quality forecast.
-- **Singapore NEA / data.gov.sg:** current PSI and PM2.5 observations, for local context only. It does not represent air quality across Malaysia or Indonesia.
-- The interface shows the latest source products only. It does **not** claim to provide a 30-day image archive: that requires scheduled collection and storage of ASMC daily maps and metadata.
+The capture script reads public ASMC WIS 2.0 hotspot ZIP reports and stores the latest seven daily snapshots in `public/hotspot-history.json`. The Pages workflow runs it daily, saves new snapshots to the repository, builds the app, and deploys it.
 
-Sources: [ASMC Regional Haze Situation](https://wis2.asmc.asean.org/regional-haze-situation/), [ASMC WIS 2.0 API item](https://api.wis2.asmc.asean.org/collections/regional_haze/items/REGIONAL_HAZE_MAP), [Open-Meteo Forecast API](https://open-meteo.com/en/docs), [Singapore NEA PSI API](https://api-open.data.gov.sg/v2/real-time/api/psi).
-
-## Repository
-
-This folder is a standalone Git repository (`haze-watch`, branch `main`). Add a GitHub remote and push when ready:
-
-```sh
-git remote add origin <your-github-repository-url>
-git push -u origin main
-```
-
-## Next steps
-
-1. Persist timestamped ASMC images and source metadata once daily to build a genuine 30-day archive.
-2. Add satellite aerosol optical depth from NASA GIBS and regional air-quality products where access and reuse terms allow.
-3. Add a backend ingestion and forecast layer with transparent validation before describing any output as a haze forecast.
+Sources: [ASMC VIIRS hotspots](https://wis2.asmc.asean.org/hotspot-reports-jpss-1-noaa-20/), [ASMC smoke-dispersion model](https://wis2.asmc.asean.org/smoke-haze-dispersion-model/), [Open-Meteo](https://open-meteo.com/en/docs).
 
 ## GitHub Pages
 
-The `main` branch is built and deployed automatically with GitHub Actions. The project is configured for the repository URL path `/haze-watch/`.
+The `main` branch deploys to [https://cyrahahaha.github.io/haze-watch/](https://cyrahahaha.github.io/haze-watch/).
