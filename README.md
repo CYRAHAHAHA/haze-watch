@@ -34,3 +34,7 @@ git push -u origin main
 1. Persist timestamped ASMC images and source metadata once daily to build a genuine 30-day archive.
 2. Add satellite aerosol optical depth from NASA GIBS and regional air-quality products where access and reuse terms allow.
 3. Add a backend ingestion and forecast layer with transparent validation before describing any output as a haze forecast.
+
+## GitHub Pages
+
+The `main` branch is built and deployed automatically with GitHub Actions. The project is configured for the repository URL path `/haze-watch/`.
