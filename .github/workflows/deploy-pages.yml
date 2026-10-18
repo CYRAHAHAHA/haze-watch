@@ -25,6 +25,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - run: npm ci
       - name: Capture daily hotspot history
         run: node scripts/capture-hotspots.mjs
       - name: Save hotspot history
@@ -36,7 +37,6 @@ jobs:
             git commit -m 'Record daily ASMC hotspot snapshot'
             git push
           fi
-      - run: npm ci
       - run: npm run build
       - uses: actions/upload-pages-artifact@v3
         with:
