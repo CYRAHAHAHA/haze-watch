@@ -1,16 +1,6 @@
 {
-  "updatedAt": "2026-10-29T18:36:07.936Z",
+  "updatedAt": "2026-10-30T18:08:11.833Z",
   "snapshots": [
-    {
-      "date": "2026-10-23",
-      "capturedAt": "2026-10-23T17:21:14.921Z",
-      "observedAt": "2026-10-23T06:56:00Z",
-      "sensors": [
-        "Suomi-NPP",
-        "NOAA-20"
-      ],
-      "hotspots": []
-    },
     {
       "date": "2026-10-24",
       "capturedAt": "2026-10-24T16:09:42.361Z",
@@ -4055,6 +4045,52 @@
           "lon": 117.833,
           "confidence": 76,
           "frp": 6.3,
+          "sensor": "NOAA-20"
+        }
+      ]
+    },
+    {
+      "date": "2026-10-30",
+      "capturedAt": "2026-10-30T18:08:11.833Z",
+      "observedAt": "2026-10-30T17:17:00Z",
+      "sensors": [
+        "Suomi-NPP",
+        "NOAA-20"
+      ],
+      "hotspots": [
+        {
+          "lat": 2.779,
+          "lon": 125.403,
+          "confidence": 83,
+          "frp": 10,
+          "sensor": "NOAA-20"
+        },
+        {
+          "lat": 2.778,
+          "lon": 125.41,
+          "confidence": 64,
+          "frp": 7.4,
+          "sensor": "NOAA-20"
+        },
+        {
+          "lat": 0.541,
+          "lon": 127.912,
+          "confidence": 77,
+          "frp": 11.7,
+          "sensor": "NOAA-20"
+        },
+        {
+          "lat": 0.465,
+          "lon": 123.241,
+          "confidence": 69,
+          "frp": 4.9,
+          "sensor": "NOAA-20"
+        },
+        {
+          "lat": 0.552,
+          "lon": 122.049,
+          "confidence": 65,
+          "frp": 4.5,
           "sensor": "NOAA-20"
         }
       ]
