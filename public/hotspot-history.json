@@ -1,23 +1,6 @@
 {
-  "updatedAt": "2026-11-18T20:47:30.057Z",
+  "updatedAt": "2026-11-19T20:52:54.627Z",
   "snapshots": [
-    {
-      "date": "2026-11-12",
-      "capturedAt": "2026-11-12T20:16:04.395Z",
-      "observedAt": "2026-11-12T18:14:00Z",
-      "sensors": [
-        "NOAA-20"
-      ],
-      "hotspots": [
-        {
-          "lat": 4.162,
-          "lon": 106.227,
-          "confidence": 48,
-          "frp": 5.5,
-          "sensor": "NOAA-20"
-        }
-      ]
-    },
     {
       "date": "2026-11-13",
       "capturedAt": "2026-11-13T19:56:11.444Z",
@@ -124,6 +107,15 @@
           "sensor": "NOAA-20"
         }
       ]
+    },
+    {
+      "date": "2026-11-19",
+      "capturedAt": "2026-11-19T20:52:54.627Z",
+      "observedAt": "2026-11-19T17:47:00Z",
+      "sensors": [
+        "NOAA-20"
+      ],
+      "hotspots": []
     }
   ]
 }
