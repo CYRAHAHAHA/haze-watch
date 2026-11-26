@@ -1,37 +1,6 @@
 {
-  "updatedAt": "2026-11-25T21:54:27.089Z",
+  "updatedAt": "2026-11-26T21:49:00.209Z",
   "snapshots": [
-    {
-      "date": "2026-11-18",
-      "capturedAt": "2026-11-18T20:47:30.057Z",
-      "observedAt": "2026-11-18T07:08:00Z",
-      "sensors": [
-        "NOAA-20"
-      ],
-      "hotspots": [
-        {
-          "lat": 14.827,
-          "lon": 100.688,
-          "confidence": 52,
-          "frp": 10,
-          "sensor": "NOAA-20"
-        },
-        {
-          "lat": 14.826,
-          "lon": 100.679,
-          "confidence": 59,
-          "frp": 17.3,
-          "sensor": "NOAA-20"
-        },
-        {
-          "lat": 14.822,
-          "lon": 100.681,
-          "confidence": 83,
-          "frp": 25.2,
-          "sensor": "NOAA-20"
-        }
-      ]
-    },
     {
       "date": "2026-11-19",
       "capturedAt": "2026-11-19T20:52:54.627Z",
@@ -121,6 +90,58 @@
           "lon": 127.641,
           "confidence": 65,
           "frp": 10.7,
+          "sensor": "NOAA-20"
+        }
+      ]
+    },
+    {
+      "date": "2026-11-26",
+      "capturedAt": "2026-11-26T21:49:00.209Z",
+      "observedAt": "2026-11-26T17:13:00Z",
+      "sensors": [
+        "NOAA-20"
+      ],
+      "hotspots": [
+        {
+          "lat": -1.453,
+          "lon": 127.438,
+          "confidence": 71,
+          "frp": 6.7,
+          "sensor": "NOAA-20"
+        },
+        {
+          "lat": -1.461,
+          "lon": 127.436,
+          "confidence": 28,
+          "frp": 4.2,
+          "sensor": "NOAA-20"
+        },
+        {
+          "lat": -1.708,
+          "lon": 128.042,
+          "confidence": 54,
+          "frp": 4.8,
+          "sensor": "NOAA-20"
+        },
+        {
+          "lat": -3.739,
+          "lon": 122.031,
+          "confidence": 21,
+          "frp": 3.3,
+          "sensor": "NOAA-20"
+        },
+        {
+          "lat": -3.872,
+          "lon": 122.408,
+          "confidence": 54,
+          "frp": 4.2,
+          "sensor": "NOAA-20"
+        },
+        {
+          "lat": -3.902,
+          "lon": 122.418,
+          "confidence": 62,
+          "frp": 4.8,
           "sensor": "NOAA-20"
         }
       ]
